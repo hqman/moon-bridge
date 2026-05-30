@@ -1,106 +1,106 @@
 # Moon Bridge
 
-Moon Bridge 是一个用 Go 编写的协议转换与模型路由代理。对外暴露 **OpenAI Responses API**（`/v1/responses`），对内支持 **Anthropic Messages**、**Google Gemini（GenAI）**、**OpenAI Chat Completions** 等多种上游协议。客户端指定不同模型别名时，自动将请求路由到对应上游 Provider 并在协议间自动转换。
+Moon Bridge is a protocol conversion and model routing proxy written in Go. It exposes the **OpenAI Responses API** (`/v1/responses`) externally, while supporting multiple upstream protocols internally, including **Anthropic Messages**, **Google Gemini (GenAI)**, and **OpenAI Chat Completions**. When a client specifies different model aliases, Moon Bridge automatically routes requests to the corresponding upstream provider and converts between protocols.
 
-> 🍳 **新手先看这里** → [CookBook.md](CookBook.md)：一份按目标找做法的菜谱，5 分钟跑通第一个对话。
-> 官方qq群：1103798316
+> 🍳 **New here? Start with** [CookBook.md](CookBook.md): a goal-oriented recipe book that gets your first conversation running in 5 minutes.
+> Official QQ group: 1103798316
 
 ---
 
-## 快速开始
+## Quick Start
 
 ```bash
-# 复制配置并编辑
+# Copy and edit the configuration
 cp config.example.yml config.yml
-# 修改 config.yml 中的 api_key
+# Update api_key in config.yml
 
-# 启动
+# Start
 go run ./cmd/moonbridge -config config.yml
 
-# 另见 CookBook.md 中的详细使用场景
+# See CookBook.md for detailed usage scenarios
 ```
 
-要求 Go 1.25+。
+Requires Go 1.25+.
 
-## 核心能力
+## Core Features
 
-- **协议转换**：OpenAI Responses → Anthropic Messages / Google Gemini / OpenAI Chat，适配四种上游协议
-- **模型路由**：通过 `routes` 配置将模型别名映射到不同 Provider 的上游模型名
-- **插件扩展**：`CorePluginHooks` 接口，支持请求预处理、响应后处理、流拦截
-- **请求跟踪**：完整链路记录，每步转换均可追溯
-- **用量统计**：按会话聚合 token 与费用
-- **管理 API**：运行时热重载配置（需启用持久化）
-- **Web Search 注入**：自动/注入模式，支持 Tavily、Firecrawl
-- **Prompt 缓存**：explicit / automatic / hybrid 三种模式
+- **Protocol conversion**: OpenAI Responses → Anthropic Messages / Google Gemini / OpenAI Chat, adapting across four upstream protocols
+- **Model routing**: Map model aliases to upstream model names from different providers via `routes`
+- **Plugin extensibility**: `CorePluginHooks` interface for request preprocessing, response postprocessing, and stream interception
+- **Request tracing**: Full-chain records with traceable conversion steps
+- **Usage statistics**: Aggregate tokens and cost by session
+- **Management API**: Runtime hot-reload configuration when persistence is enabled
+- **Web Search injection**: Auto/injection modes with Tavily and Firecrawl support
+- **Prompt caching**: Explicit, automatic, and hybrid modes
 
-## 三种工作模式
+## Operating Modes
 
-| 模式 | 行为 |
-|------|------|
-| `Transform`（默认） | 接收 OpenAI Responses 请求 → 协议转换 → 转发 → 反向转换后返回 |
-| `CaptureAnthropic` | 接收 Anthropic Messages 请求 → 透明转发到 Anthropic 上游 |
-| `CaptureResponse` | 接收 OpenAI Responses 请求 → 透明转发到 OpenAI 上游 |
+| Mode | Behavior |
+|------|----------|
+| `Transform` (default) | Receive OpenAI Responses requests → convert protocol → forward → convert back and return |
+| `CaptureAnthropic` | Receive Anthropic Messages requests → transparently forward to an Anthropic upstream |
+| `CaptureResponse` | Receive OpenAI Responses requests → transparently forward to an OpenAI upstream |
 
-## 配置说明
+## Configuration
 
-采用 YAML 格式，核心结构为 `models`、`providers`、`routes` 三段式。完整配置说明见 [CONFIGURATION.md](docs/CONFIGURATION.md)。
+Moon Bridge uses YAML configuration with three core sections: `models`, `providers`, and `routes`. See [CONFIGURATION.md](docs/CONFIGURATION.md) for the full configuration reference.
 
-## 与 Codex CLI 配合使用
+## Using with Codex CLI
 
-将 Moon Bridge 地址设为 Codex 的 OpenAI API Base URL 即可：
+Set the Moon Bridge address as Codex's OpenAI API Base URL:
 
 ```toml
 [openai]
 base_url = "http://127.0.0.1:38440/v1"
-api_key = "any-non-empty-value"
+api_key = "[REDACTED:api-key]"
 ```
 
-然后在 Moon Bridge 配置中定义与 Codex 模型同名的路由。
+Then define routes in the Moon Bridge configuration using the same names as Codex models.
 
-## 与 Claude Code 配合使用
+## Using with Claude Code
 
 ```bash
 claude --model your-alias --api-url http://127.0.0.1:38440 --api-key any-value
 ```
 
-## Docker 部署
+## Docker Deployment
 
 ```bash
 docker build -t moonbridge .
 docker run -p 38440:38440 -v $(pwd)/config.yml:/config/config.yml moonbridge
 ```
 
-## 命令行选项
+## CLI Options
 
-| 参数 | 默认值 | 说明 |
-|------|--------|------|
-| `-config` | `${XDG_CONFIG_HOME}/moonbridge/config.yml` | 配置文件路径 |
-| `-addr` | 来自配置文件 | 覆盖监听地址 |
-| `-mode` | 来自配置文件 | 覆盖运行模式（Transform/CaptureAnthropic/CaptureResponse） |
-| `-print-addr` | — | 打印配置的监听地址后退出 |
-| `-print-mode` | — | 打印配置的运行模式后退出 |
-| `-print-default-model` | — | 打印默认模型别名后退出 |
-| `-print-codex-model` | — | 打印 Codex 模型后退出 |
-| `-print-codex-config <model>` | — | 为指定模型生成 Codex config.toml 后退出 |
-| `-dump-config-schema` | — | 生成 config.schema.json 后退出 |
+| Option | Default | Description |
+|--------|---------|-------------|
+| `-config` | `${XDG_CONFIG_HOME}/moonbridge/config.yml` | Configuration file path |
+| `-addr` | From configuration file | Override listen address |
+| `-mode` | From configuration file | Override operating mode (Transform/CaptureAnthropic/CaptureResponse) |
+| `-print-addr` | — | Print the configured listen address and exit |
+| `-print-mode` | — | Print the configured operating mode and exit |
+| `-print-default-model` | — | Print the default model alias and exit |
+| `-print-codex-model` | — | Print the Codex model and exit |
+| `-print-codex-config <model>` | — | Generate Codex config.toml for the specified model and exit |
+| `-dump-config-schema` | — | Generate config.schema.json and exit |
 
-## HTTP API 端点
+## HTTP API Endpoints
 
-| 端点 | 方法 | 说明 |
-|------|------|------|
-| `/v1/responses` | POST | OpenAI Responses API 主入口 |
-| `/responses` | POST | 同上（无 `/v1` 前缀） |
-| `/v1/models` | GET | 列出可用模型 |
-| `/models` | GET | 同上 |
-| `/api/v1/` | — | 管理 API（需启用持久化） |
-| `/health` | GET | 健康检查 |
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/v1/responses` | POST | Main OpenAI Responses API entry point |
+| `/responses` | POST | Same as above, without the `/v1` prefix |
+| `/v1/models` | GET | List available models |
+| `/models` | GET | Same as above |
+| `/api/v1/` | — | Management API (requires persistence to be enabled) |
+| `/health` | GET | Health check |
 
-详细 API 文档见 [API.md](docs/api.md)。
+See [API.md](docs/api.md) for detailed API documentation.
 
-## 请求跟踪
+## Request Tracing
 
-通过配置中的 `trace.enabled` 或特定工作模式启用请求跟踪，将完整请求/响应链路记录到文件。跟踪文件按 `session/模型名/类别/序号.json` 组织，支持 Chat、Response、Anthropic 三种分类。
+Enable request tracing with `trace.enabled` in the configuration or through specific operating modes. Moon Bridge records the full request/response chain to files. Trace files are organized as `session/model-name/category/sequence.json` and support Chat, Response, and Anthropic categories.
 
-## 许可证
+## License
 
 [GPL v3](LICENSE)
